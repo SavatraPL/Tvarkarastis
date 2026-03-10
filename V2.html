@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>~/tvarkaraštis</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #1b1b24; --fg: #d2d7f3; --accent: #e67e22; 
+            --card-bg: rgba(255, 255, 255, 0.03); --divider: rgba(182, 156, 219, 0.15);
+            --free-time: rgba(182, 156, 219, 0.05);
+        }
+        body { background: var(--bg); color: var(--fg); font-family: 'JetBrains Mono', monospace; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        
+        .top-bar { display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 1200px; border-bottom: 1px solid var(--accent); padding-bottom: 10px; margin-bottom: 20px; }
+        h1 { color: var(--accent); margin: 0; font-size: 1.5rem; }
+
+        .controls { display: flex; gap: 10px; }
+        .btn-toggle { background: none; border: 1px solid var(--divider); color: var(--fg); padding: 5px 10px; cursor: pointer; font-family: inherit; font-size: 0.7rem; border-radius: 4px; }
+        .btn-toggle:hover { border-color: var(--accent); color: var(--accent); }
+
+        .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; width: 100%; max-width: 1200px; }
+        
+        .day-column { display: flex; flex-direction: column; gap: 10px; }
+        .day-header { text-align: center; padding: 10px; font-weight: 500; color: var(--accent); background: rgba(230, 126, 34, 0.1); border-radius: 4px; margin-bottom: 5px; }
+
+        .lesson { background: var(--card-bg); border: 1px solid var(--divider); border-radius: 6px; padding: 12px; font-size: 0.85rem; transition: 0.3s; min-height: 70px; display: flex; flex-direction: column; justify-content: center; }
+        .lesson.active { border-color: var(--accent); box-shadow: 0 0 15px rgba(230, 126, 34, 0.3); background: rgba(230, 126, 34, 0.05); }
+        
+        .free-time { border: 1px dashed var(--divider); background: var(--free-time); min-height: 30px; font-size: 0.7rem; display: flex; align-items: center; justify-content: center; opacity: 0.6; border-radius: 4px; color: #b69cdb; }
+        .free-time.hidden { display: none; }
+
+        .time { font-size: 0.7rem; opacity: 0.5; margin-bottom: 5px; }
+        .subject { font-weight: 500; margin-bottom: 3px; }
+        .room { font-size: 0.75rem; color: var(--accent); }
+
+        @media (max-width: 900px) {
+            .grid { grid-template-columns: 1fr; }
+            .top-bar { flex-direction: column; gap: 15px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="top-bar">
+        <h1 id="main-title">~/tvarkaraštis</h1>
+        <div class="controls">
+            <button class="btn-toggle" onclick="toggleFreeTime()">🔄 Perjungti Laisvą laiką</button>
+        </div>
+    </div>
+
+    <div class="grid" id="timetable-grid"></div>
+
+    <script>
+        // Full schedule including gaps found in your image
+        const schedule = {
+            "Pi": [
+                { s: "08:30", e: "09:15", n: "Lietuvių k.", r: "225" },
+                { type: "free", s: "09:15", e: "09:25" },
+                { s: "09:25", e: "10:10", n: "Lietuvių k.", r: "225" },
+                { type: "free", s: "10:10", e: "10:20" },
+                { s: "10:20", e: "11:05", n: "Informatika", r: "309" },
+                { type: "free", s: "11:05", e: "12:40" }, // Big gap
+                { s: "12:40", e: "13:25", n: "Kūno k.", r: "Salė 1" },
+                { type: "free", s: "13:25", e: "13:35" },
+                { s: "13:35", e: "14:20", n: "Matematika", r: "208" },
+                { type: "free", s: "14:20", e: "14:30" },
+                { s: "14:30", e: "15:15", n: "Matematika", r: "208" },
+                { type: "free", s: "15:15", e: "15:20" },
+                { s: "15:20", e: "16:05", n: "Ekonomika", r: "116" }
+            ],
+            "An": [
+                { s: "08:30", e: "09:15", n: "Kūno k.", r: "Salė 1" },
+                { type: "free", s: "09:15", e: "09:25" },
+                { s: "09:25", e: "10:10", n: "Kūno k.", r: "Salė 1" },
+                { type: "free", s: "10:10", e: "10:20" },
+                { s: "10:20", e: "11:05", n: "Lietuvių k.", r: "225" },
+                { type: "free", s: "11:05", e: "11:25" },
+                { s: "11:25", e: "12:10", n: "Lietuvių k.", r: "225" },
+                { type: "free", s: "12:10", e: "14:30" }, // Large gap
+                { s: "14:30", e: "15:15", n: "Matematika", r: "208" }
+            ],
+            "Tr": [
+                { type: "free", s: "08:30", e: "10:20" },
+                { s: "10:20", e: "11:05", n: "Šokis", r: "Aktų salė" },
+                { type: "free", s: "11:05", e: "12:40" },
+                { s: "12:40", e: "13:25", n: "Anglų k.", r: "304" },
+                { type: "free", s: "13:25", e: "13:35" },
+                { s: "13:35", e: "14:20", n: "Anglų k.", r: "304" },
+                { type: "free", s: "14:20", e: "14:30" },
+                { s: "14:30", e: "16:05", n: "Informatika", r: "309" }
+            ],
+            "Ke": [
+                { s: "08:30", e: "10:10", n: "Ekonomika", r: "116" },
+                { type: "free", s: "10:10", e: "12:40" },
+                { s: "12:40", e: "13:25", n: "Matematika", r: "208" },
+                { type: "free", s: "13:25", e: "13:35" },
+                { s: "13:35", e: "14:20", n: "Matematika", r: "208" },
+                { type: "free", s: "14:20", e: "14:30" },
+                { s: "14:30", e: "15:15", n: "Anglų k.", r: "304" },
+                { type: "free", s: "15:15", e: "15:20" },
+                { s: "15:20", e: "16:05", n: "Anglų k.", r: "304" }
+            ],
+            "Pe": [
+                { s: "08:30", e: "09:15", n: "Lietuvių k.", r: "225" },
+                { type: "free", s: "09:15", e: "09:25" },
+                { s: "09:25", e: "10:10", n: "Lietuvių k.", r: "225" },
+                { type: "free", s: "10:10", e: "10:20" },
+                { s: "10:20", e: "11:05", n: "Lietuvių k.", r: "225" },
+                { type: "free", s: "11:05", e: "11:25" },
+                { s: "11:25", e: "12:10", n: "Etika", r: "105" },
+                { type: "free", s: "12:10", e: "14:30" },
+                { s: "14:30", e: "15:15", n: "Matematika", r: "208" },
+                { type: "free", s: "15:15", e: "15:20" },
+                { s: "15:20", e: "16:05", n: "Matematika", r: "208" }
+            ]
+        };
+
+        let showFreeTime = true;
+
+        function toggleFreeTime() {
+            showFreeTime = !showFreeTime;
+            render();
+        }
+
+        function render() {
+            const grid = document.getElementById('timetable-grid');
+            const now = new Date();
+            const daysMap = ["Pe", "Pi", "An", "Tr", "Ke", "Pe", "Pe"]; 
+            const currentDay = daysMap[now.getDay()];
+            const currentTime = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
+
+            grid.innerHTML = Object.keys(schedule).map(day => `
+                <div class="day-column">
+                    <div class="day-header">${day}</div>
+                    ${schedule[day].map(item => {
+                        if (item.type === "free") {
+                            return `<div class="free-time ${showFreeTime ? '' : 'hidden'}">☕ Laisvas laikas (${item.s}-${item.e})</div>`;
+                        }
+                        const isActive = (day === currentDay && currentTime >= item.s && currentTime <= item.e);
+                        return `
+                            <div class="lesson ${isActive ? 'active' : ''}">
+                                <div class="time">${item.s} - ${item.e}</div>
+                                <div class="subject">${item.n}</div>
+                                <div class="room">${item.r}</div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `).join('');
+        }
+
+        render();
+        setInterval(render, 60000); 
+    </script>
+</body>
+</html>
